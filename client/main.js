@@ -34,6 +34,19 @@ function ensureDownloadDir() {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
+function resolveDownloadTarget(relativeName) {
+  const safeSegments = String(relativeName || '')
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((segment) => segment && segment !== '.' && segment !== '..');
+
+  if (!safeSegments.length) {
+    throw new Error('Invalid destination path.');
+  }
+
+  return path.join(DOWNLOAD_DIR, ...safeSegments);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: WINDOW_WIDTH,
@@ -41,7 +54,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     frame: false,
-    backgroundColor: '#1A1A2E',
+    backgroundColor: '#0D1117',
     icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -150,26 +163,24 @@ ipcMain.handle('get-screen-sources', async () => {
   }));
 });
 
-ipcMain.handle('start-screen-capture', async (_event, sourceId) => {
-  return {
-    sourceId,
-    constraints: {
-      audio: false,
-      video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: sourceId,
-          minWidth: 1280,
-          maxWidth: 3840,
-          minHeight: 720,
-          maxHeight: 2160,
-          minFrameRate: 15,
-          maxFrameRate: 30
-        }
+ipcMain.handle('start-screen-capture', async (_event, sourceId) => ({
+  sourceId,
+  constraints: {
+    audio: false,
+    video: {
+      mandatory: {
+        chromeMediaSource: 'desktop',
+        chromeMediaSourceId: sourceId,
+        minWidth: 1280,
+        maxWidth: 3840,
+        minHeight: 720,
+        maxHeight: 2160,
+        minFrameRate: 15,
+        maxFrameRate: 30
       }
     }
-  };
-});
+  }
+}));
 
 ipcMain.handle('open-file-dialog', async () => {
   if (!mainWindow) {
@@ -194,17 +205,79 @@ ipcMain.handle('open-file-dialog', async () => {
   });
 });
 
-ipcMain.handle('read-file', async (_event, filePath) => {
-  const fileBuffer = await fs.promises.readFile(filePath);
-  return fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
+ipcMain.handle('open-folder-dialog', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory']
+  });
+  return result.canceled ? null : result.filePaths[0];
 });
+
+ipcMain.handle('get-file-info', async (_event, filePath) => {
+  const stat = await fs.promises.stat(filePath);
+  return { size: stat.size, name: path.basename(filePath) };
+});
+
+ipcMain.handle('read-file-chunk', async (_event, { filePath, offset, length }) => {
+  const fd = await fs.promises.open(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(length);
+    const { bytesRead } = await fd.read(buf, 0, length, offset);
+    return buf.buffer.slice(buf.byteOffset, buf.byteOffset + bytesRead);
+  } finally {
+    await fd.close();
+  }
+});
+
+ipcMain.handle('read-dir-recursive', async (_event, dirPath) => {
+  const results = [];
+
+  async function walk(dir, prefix) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(full, rel);
+      } else {
+        const stat = await fs.promises.stat(full);
+        results.push({ path: full, name: rel, size: stat.size });
+      }
+    }
+  }
+
+  await walk(dirPath, '');
+  return results;
+});
+
+ipcMain.handle('prepare-save-file', async (_event, name) => {
+  ensureDownloadDir();
+  const destination = resolveDownloadTarget(name);
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  await fs.promises.writeFile(destination, Buffer.alloc(0));
+  return destination;
+});
+
+ipcMain.handle('write-file-chunk', async (_event, { name, buffer, offset }) => {
+  const destination = resolveDownloadTarget(name);
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  const fd = await fs.promises.open(destination, 'r+');
+  try {
+    const data = Buffer.from(buffer);
+    await fd.write(data, 0, data.byteLength, offset);
+    return destination;
+  } finally {
+    await fd.close();
+  }
+});
+
+ipcMain.handle('complete-save-file', async (_event, name) => resolveDownloadTarget(name));
 
 ipcMain.handle('save-file', async (_event, { name, buffer }) => {
   ensureDownloadDir();
-  const safeName = path.basename(name);
-  const destination = path.join(DOWNLOAD_DIR, safeName);
-  const data = Buffer.from(buffer);
-  await fs.promises.writeFile(destination, data);
+  const destination = resolveDownloadTarget(name);
+  await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+  await fs.promises.writeFile(destination, Buffer.from(buffer));
   return destination;
 });
 

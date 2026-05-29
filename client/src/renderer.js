@@ -2,7 +2,7 @@
   const SESSION_KEY = 'secure-system-session-id';
   const passwordInput = document.getElementById('host-password');
   const yourIdEl = document.getElementById('your-id');
-  const statusEl = document.getElementById('status');
+  const statusEl = document.getElementById('status-msg');
   const statusDotEl = document.getElementById('status-dot');
   const remoteIdInput = document.getElementById('remote-id');
   const remotePassInput = document.getElementById('remote-pass');
@@ -14,13 +14,12 @@
   const toolbarCadBtn = document.getElementById('toolbar-cad');
   const copyIdBtn = document.getElementById('copy-id-btn');
   const pickFilesBtn = document.getElementById('pick-files-btn');
+  const pickFolderBtn = document.getElementById('pick-folder-btn');
   const dropZone = document.getElementById('drop-zone');
   const transferList = document.getElementById('transfer-list');
-  const welcomeScreen = document.getElementById('welcome-screen');
-  const remoteScreen = document.getElementById('remote-screen');
   const remoteVideo = document.getElementById('remote-video');
   const titlebarButtons = document.querySelectorAll('.titlebar-controls button');
-  const fileTransferSection = document.querySelector('.file-transfer-section');
+  const filesPanel = document.querySelector('.files-panel');
 
   let sessionId = getOrCreateSessionId();
   let socket;
@@ -57,8 +56,8 @@
   }
 
   function showRemoteView(visible) {
-    welcomeScreen.classList.toggle('active', !visible);
-    remoteScreen.classList.toggle('active', visible);
+    document.getElementById('welcome-screen').classList.toggle('hidden', visible);
+    document.getElementById('remote-screen').classList.toggle('hidden', !visible);
   }
 
   function sendData(payload) {
@@ -69,7 +68,7 @@
   const fileTransfer = new window.SecureSystemFileTransfer(
     (payload) => sendData(payload),
     transferList,
-    (message) => setStatus(message, connected ? 'connected' : 'idle')
+    (message, state) => setStatus(message, state || (connected ? 'connected' : 'idle'))
   );
 
   const host = new window.SecureSystemHost(null, {
@@ -157,7 +156,9 @@
 
     socket.on('error', ({ message }) => setStatus(message || 'Signaling error.', 'error'));
     socket.on('disconnect', () => setStatus('Disconnected from signaling server.', 'error'));
-    window.setInterval(() => { if (socket?.connected) socket.emit('heartbeat'); }, 20000);
+    window.setInterval(() => {
+      if (socket?.connected) socket.emit('heartbeat');
+    }, 20000);
   }
 
   async function startViewerConnection() {
@@ -198,21 +199,30 @@
     if (role === 'host') host.stop(false);
     if (role === 'viewer') viewer.disconnect(false);
     showRemoteView(false);
+    document.getElementById('frame-stats').textContent = 'Waiting for stream...';
     setStatus(message, preserveError ? 'error' : 'idle');
   }
 
   async function handleFilePick() {
     try {
       const files = await window.electronAPI.openFileDialog();
-      for (const file of files) {
-        await fileTransfer.sendFile(file);
-      }
+      await Promise.all(files.map((file) => fileTransfer.sendFile(file)));
     } catch (error) {
       setStatus(`File transfer error: ${error.message}`, 'error');
     }
   }
 
+  async function handleFolderPick() {
+    try {
+      const dirPath = await window.electronAPI.openFolderDialog();
+      if (dirPath) await fileTransfer.sendFolder(dirPath);
+    } catch (error) {
+      setStatus(`Folder transfer error: ${error.message}`, 'error');
+    }
+  }
+
   yourIdEl.textContent = formatSessionId(sessionId);
+  showRemoteView(false);
   connectSignaling();
 
   copyIdBtn.addEventListener('click', async () => {
@@ -223,13 +233,15 @@
   connectBtn.addEventListener('click', startViewerConnection);
   disconnectBtn.addEventListener('click', () => cleanupSession());
   toolbarDisconnectBtn.addEventListener('click', () => cleanupSession());
-  toolbarFilesBtn.addEventListener('click', () => fileTransferSection.scrollIntoView({ behavior: 'smooth' }));
+  toolbarFilesBtn.addEventListener('click', () => filesPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   toolbarFullscreenBtn.addEventListener('click', async () => {
     if (!document.fullscreenElement) await remoteVideo.requestFullscreen?.();
     else await document.exitFullscreen?.();
   });
   toolbarCadBtn.addEventListener('click', () => sendData({ type: 'keyboard-shortcut', key: 'delete', modifiers: ['control', 'alt'] }));
   pickFilesBtn.addEventListener('click', handleFilePick);
+  pickFolderBtn.addEventListener('click', handleFolderPick);
+  dropZone.addEventListener('click', handleFilePick);
 
   ['dragenter', 'dragover'].forEach((eventName) => {
     dropZone.addEventListener(eventName, (event) => {
@@ -246,8 +258,36 @@
   });
 
   dropZone.addEventListener('drop', async (event) => {
-    const files = Array.from(event.dataTransfer.files || []).map((file) => ({ name: file.name, size: file.size, path: file.path }));
-    for (const file of files) await fileTransfer.sendFile(file);
+    try {
+      const tasks = [];
+      const items = Array.from(event.dataTransfer.items || []);
+      for (const item of items) {
+        if (item.kind !== 'file') continue;
+        const entry = item.webkitGetAsEntry?.();
+        if (!entry) continue;
+        if (entry.isDirectory) {
+          const file = item.getAsFile();
+          if (file && file.path) {
+            tasks.push(fileTransfer.sendFolder(file.path));
+          }
+        } else {
+          const file = item.getAsFile();
+          if (file) {
+            tasks.push(fileTransfer.sendFile({ name: file.name, size: file.size, path: file.path }));
+          }
+        }
+      }
+
+      if (!tasks.length) {
+        for (const file of Array.from(event.dataTransfer.files || [])) {
+          if (file.path) tasks.push(fileTransfer.sendFile({ name: file.name, size: file.size, path: file.path }));
+        }
+      }
+
+      await Promise.all(tasks);
+    } catch (error) {
+      setStatus(`Drop transfer error: ${error.message}`, 'error');
+    }
   });
 
   remoteIdInput.addEventListener('input', (event) => {
@@ -266,4 +306,13 @@
   window.electronAPI.onTrayAction((action) => {
     if (action === 'disconnect') cleanupSession('Disconnected from tray.');
   });
+
+  window.setInterval(() => {
+    if (activeRole === 'viewer' && connected) {
+      const video = document.getElementById('remote-video');
+      if (video.videoWidth) {
+        document.getElementById('frame-stats').textContent = `${video.videoWidth}×${video.videoHeight}`;
+      }
+    }
+  }, 2000);
 })();

@@ -1,31 +1,43 @@
 (function () {
+  const CHUNK_SIZE = 256 * 1024;
+
   function formatBytes(bytes) {
     if (!bytes) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let value = bytes;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
     let index = 0;
+    let value = Number(bytes);
     while (value >= 1024 && index < units.length - 1) {
       value /= 1024;
       index += 1;
     }
-    return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+    return `${value.toFixed(index ? 1 : 0)} ${units[index]}`;
   }
 
-  function createId() {
+  function uid() {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function bytesToBase64(uint8Array) {
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
+
+  function bufToB64(buffer) {
+    const bytes = new Uint8Array(buffer);
     let binary = '';
-    const chunkSize = 0x8000;
-    for (let index = 0; index < uint8Array.length; index += chunkSize) {
-      const chunk = uint8Array.subarray(index, index + chunkSize);
-      binary += String.fromCharCode.apply(null, chunk);
+    const step = 0x8000;
+    for (let index = 0; index < bytes.length; index += step) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + step));
     }
     return btoa(binary);
   }
 
-  function base64ToBytes(base64) {
+  function b64ToBuf(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index += 1) {
@@ -34,83 +46,126 @@
     return bytes;
   }
 
+  function baseName(name) {
+    const parts = String(name || '').split('/').filter(Boolean);
+    return parts[parts.length - 1] || String(name || 'file');
+  }
+
   class FileTransfer {
     constructor(sendPayload, container, setStatus) {
-      this.sendPayload = sendPayload;
+      this.send = sendPayload;
       this.container = container;
       this.setStatus = setStatus;
-      this.CHUNK_SIZE = 64 * 1024;
       this.incoming = new Map();
     }
 
-    setSender(sendPayload) {
-      this.sendPayload = sendPayload;
+    setSender(fn) {
+      this.send = fn;
     }
 
-    createTransferItem(id, name, size, direction) {
-      let entry = this.container.querySelector(`[data-transfer-id="${id}"]`);
-      if (entry) return entry;
+    createItem(id, name, size, direction) {
+      let element = this.container.querySelector(`[data-tid="${id}"]`);
+      if (element) return element;
 
-      entry = document.createElement('div');
-      entry.className = 'transfer-item';
-      entry.dataset.transferId = id;
-      entry.innerHTML = `
-        <div class="transfer-meta">
-          <strong>${name}</strong>
-          <span>${direction} • ${formatBytes(size)}</span>
+      const shortName = name.length > 38 ? `...${name.slice(-35)}` : name;
+      element = document.createElement('div');
+      element.className = 'transfer-item';
+      element.dataset.tid = id;
+      element.innerHTML = `
+        <div class="ti-header">
+          <span class="ti-name" title="${escapeHtml(name)}">${escapeHtml(shortName)}</span>
+          <span class="ti-badge ${direction}">${direction === 'send' ? '↑' : '↓'}</span>
         </div>
-        <div class="progress-bar"><div class="progress-fill"></div></div>
-        <div class="transfer-meta"><span class="transfer-status">Queued</span><span class="transfer-progress">0%</span></div>
+        <div class="ti-size">${formatBytes(size)}</div>
+        <div class="ti-bar"><div class="ti-fill ${direction}"></div></div>
+        <div class="ti-footer">
+          <span class="ti-pct">0%</span>
+          <span class="ti-status">Queued</span>
+        </div>
       `;
-      this.container.prepend(entry);
-      return entry;
+      this.container.prepend(element);
+      return element;
     }
 
-    updateTransfer(id, percent, status) {
-      const entry = this.container.querySelector(`[data-transfer-id="${id}"]`);
-      if (!entry) return;
-      entry.querySelector('.progress-fill').style.width = `${Math.max(0, Math.min(percent, 100))}%`;
-      entry.querySelector('.transfer-progress').textContent = `${Math.floor(percent)}%`;
-      entry.querySelector('.transfer-status').textContent = status;
+    updateItem(id, percent, status) {
+      const element = this.container.querySelector(`[data-tid="${id}"]`);
+      if (!element) return;
+      element.querySelector('.ti-fill').style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+      element.querySelector('.ti-pct').textContent = `${Math.floor(percent)}%`;
+      element.querySelector('.ti-status').textContent = status;
     }
 
     async sendFile(fileDescriptor) {
-      if (!this.sendPayload) throw new Error('No active session for file transfer.');
+      if (!this.send) throw new Error('No active session.');
+      const id = uid();
+      const filePath = fileDescriptor.path;
+      if (!filePath) throw new Error('File path is unavailable.');
 
-      const transferId = createId();
-      const buffer = await window.electronAPI.readFile(fileDescriptor.path);
-      const totalChunks = Math.ceil(buffer.byteLength / this.CHUNK_SIZE) || 1;
-      this.createTransferItem(transferId, fileDescriptor.name, fileDescriptor.size, 'Sending');
-      this.updateTransfer(transferId, 0, 'Preparing');
-
-      this.sendPayload({
-        type: 'file-meta',
-        id: transferId,
-        name: fileDescriptor.name,
-        size: buffer.byteLength,
-        totalChunks
-      });
-
-      let offset = 0;
-      let index = 0;
-      while (offset < buffer.byteLength) {
-        const chunk = buffer.slice(offset, offset + this.CHUNK_SIZE);
-        this.sendPayload({
-          type: 'file-chunk',
-          id: transferId,
-          index,
-          total: totalChunks,
-          data: bytesToBase64(new Uint8Array(chunk))
-        });
-        offset += this.CHUNK_SIZE;
-        index += 1;
-        this.updateTransfer(transferId, (index / totalChunks) * 100, 'Sending');
-        await new Promise((resolve) => setTimeout(resolve, 0));
+      let { name, size } = fileDescriptor;
+      if (!name || typeof size !== 'number') {
+        const info = await window.electronAPI.getFileInfo(filePath);
+        name = name || info.name;
+        size = typeof size === 'number' ? size : info.size;
       }
 
-      this.sendPayload({ type: 'file-complete', id: transferId });
-      this.updateTransfer(transferId, 100, 'Sent');
-      this.setStatus(`Sent ${fileDescriptor.name}`);
+      this.createItem(id, name, size, 'send');
+      this.updateItem(id, 0, 'Reading...');
+
+      try {
+        const totalChunks = Math.max(1, Math.ceil(size / CHUNK_SIZE));
+        this.send({ type: 'file-meta', id, name, size, totalChunks });
+
+        let offset = 0;
+        let chunkIndex = 0;
+        while (offset < size) {
+          const length = Math.min(CHUNK_SIZE, size - offset);
+          const chunk = await window.electronAPI.readFileChunk(filePath, offset, length);
+          this.send({
+            type: 'file-chunk',
+            id,
+            index: chunkIndex,
+            total: totalChunks,
+            offset,
+            data: bufToB64(chunk)
+          });
+          offset += length;
+          chunkIndex += 1;
+          this.updateItem(id, (offset / Math.max(size, 1)) * 100, `${formatBytes(offset)} / ${formatBytes(size)}`);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        this.send({ type: 'file-complete', id });
+        this.updateItem(id, 100, 'Sent ✓');
+        this.setStatus(`Sent: ${baseName(name)}`);
+      } catch (error) {
+        this.updateItem(id, 0, `Error: ${error.message}`);
+        this.setStatus(`Transfer failed: ${error.message}`, 'error');
+        throw error;
+      }
+    }
+
+    async sendFolder(dirPath) {
+      const folderName = String(dirPath || '').split(/[\\/]/).filter(Boolean).pop() || 'Folder';
+      const files = await window.electronAPI.readDirRecursive(dirPath);
+      if (!files.length) {
+        this.setStatus('Selected folder is empty.', 'error');
+        return;
+      }
+
+      this.setStatus(`Sending folder: ${folderName} (${files.length} file${files.length === 1 ? '' : 's'})`);
+      const queue = files.map((file) => ({
+        ...file,
+        name: `${folderName}/${file.name}`
+      }));
+
+      const runNext = async () => {
+        const next = queue.shift();
+        if (!next) return;
+        await this.sendFile(next);
+        await runNext();
+      };
+
+      await Promise.all([runNext(), runNext(), runNext()]);
     }
 
     async receiveData(payload) {
@@ -120,20 +175,38 @@
           name: payload.name,
           size: payload.size,
           totalChunks: payload.totalChunks,
-          chunks: new Array(payload.totalChunks),
-          received: 0
+          receivedBytes: 0,
+          receivedChunks: 0,
+          lastWrite: window.electronAPI.prepareSaveFile(payload.name)
         });
-        this.createTransferItem(payload.id, payload.name, payload.size, 'Receiving');
-        this.updateTransfer(payload.id, 0, 'Receiving');
+        this.createItem(payload.id, payload.name, payload.size, 'recv');
+        this.updateItem(payload.id, 0, 'Receiving...');
         return true;
       }
 
       if (payload.type === 'file-chunk') {
         const transfer = this.incoming.get(payload.id);
         if (!transfer) return true;
-        transfer.chunks[payload.index] = base64ToBytes(payload.data);
-        transfer.received += 1;
-        this.updateTransfer(payload.id, (transfer.received / transfer.totalChunks) * 100, 'Receiving');
+
+        const bytes = b64ToBuf(payload.data);
+        transfer.receivedBytes += bytes.byteLength;
+        transfer.receivedChunks += 1;
+        transfer.lastWrite = transfer.lastWrite.then(() => window.electronAPI.writeFileChunk(transfer.name, bytes.buffer, payload.offset));
+
+        try {
+          await transfer.lastWrite;
+          const percent = transfer.size ? (transfer.receivedBytes / transfer.size) * 100 : 100;
+          this.updateItem(
+            payload.id,
+            Math.min(percent, 99),
+            `${formatBytes(transfer.receivedBytes)} / ${formatBytes(transfer.size)}`
+          );
+        } catch (error) {
+          this.updateItem(payload.id, 0, `Error: ${error.message}`);
+          this.setStatus(`Receive failed: ${error.message}`, 'error');
+          throw error;
+        }
+
         return true;
       }
 
@@ -141,19 +214,19 @@
         const transfer = this.incoming.get(payload.id);
         if (!transfer) return true;
 
-        const merged = new Uint8Array(transfer.size);
-        let offset = 0;
-        for (const chunk of transfer.chunks) {
-          if (!chunk) continue;
-          merged.set(chunk, offset);
-          offset += chunk.byteLength;
+        try {
+          this.updateItem(transfer.id, 99, 'Finalizing...');
+          await transfer.lastWrite;
+          await window.electronAPI.completeSaveFile(transfer.name);
+          this.updateItem(transfer.id, 100, 'Saved ✓');
+          this.setStatus(`Received: ${baseName(transfer.name)}`);
+          this.incoming.delete(payload.id);
+          return true;
+        } catch (error) {
+          this.updateItem(payload.id, 0, `Error: ${error.message}`);
+          this.setStatus(`Receive failed: ${error.message}`, 'error');
+          throw error;
         }
-
-        const savedPath = await window.electronAPI.saveFile(transfer.name, merged.buffer);
-        this.updateTransfer(payload.id, 100, `Saved to ${savedPath}`);
-        this.setStatus(`Received ${transfer.name}`);
-        this.incoming.delete(payload.id);
-        return true;
       }
 
       return false;
