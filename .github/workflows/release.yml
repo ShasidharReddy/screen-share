@@ -22,11 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
-        run: cd client && npm install
+        run: cd client && npm install --no-audit --no-fund
 
       - name: Build macOS
         run: cd client && npm run build:mac
@@ -48,11 +46,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
-        run: cd client && npm install
+        run: cd client && npm install --no-audit --no-fund
 
       - name: Build Windows
         run: cd client && npm run build:win
@@ -75,11 +71,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
 
       - name: Install dependencies
-        run: cd client && npm install
+        run: cd client && npm install --no-audit --no-fund
 
       - name: Build Linux
         run: cd client && npm run build:linux
