@@ -59,9 +59,18 @@ function createWindow() {
   });
 }
 
+function getTrayIcon() {
+  let icon = nativeImage.createFromPath(APP_ICON);
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH6AEdCg8nXWamzQAAAB1pVFh0Q29tbWVudAAAAAAAQ3JlYXRlZCB3aXRoIEdJTVBkLmUHAAAAI0lEQVQ4y2NgGAWjgP///w8MDAwMJBsw6oJRF4y6YBQAAP//AAYDABAIAAAAASUVORK5CYII='
+    );
+  }
+  return icon;
+}
+
 function createTray() {
-  const icon = nativeImage.createFromPath(APP_ICON);
-  tray = new Tray(icon.resize({ width: 18, height: 18 }));
+  tray = new Tray(getTrayIcon().resize({ width: 18, height: 18 }));
   tray.setToolTip('Secure System');
 
   const buildMenu = () => Menu.buildFromTemplate([

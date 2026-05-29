@@ -11,5 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   injectKeyboard: (payload) => ipcRenderer.send('inject-keyboard', payload),
   windowControl: (action) => ipcRenderer.send('window-control', action),
   notify: (title, body) => ipcRenderer.send('show-notification', { title, body }),
-  onTrayAction: (callback) => ipcRenderer.on('tray-action', (_event, action) => callback(action))
+  onTrayAction: (callback) => {
+    ipcRenderer.removeAllListeners('tray-action');
+    ipcRenderer.on('tray-action', (_event, action) => callback(action));
+  }
 });

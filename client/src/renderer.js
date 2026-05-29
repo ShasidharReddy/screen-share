@@ -161,13 +161,18 @@
   }
 
   async function startViewerConnection() {
+    if (connectBtn.disabled) return;
+    connectBtn.disabled = true;
+
     const remoteId = rawSessionId(remoteIdInput.value);
     if (!/^\d{9}$/.test(remoteId)) {
       setStatus('Enter a valid 9-digit remote ID.', 'error');
+      connectBtn.disabled = false;
       return;
     }
     if (!socket?.connected) {
       setStatus('Signaling server is offline.', 'error');
+      connectBtn.disabled = false;
       return;
     }
 
@@ -187,6 +192,7 @@
   function cleanupSession(message = 'Disconnected.', preserveError = false) {
     connected = false;
     activeRemoteId = null;
+    connectBtn.disabled = false;
     const role = activeRole;
     activeRole = null;
     if (role === 'host') host.stop(false);
