@@ -1,0 +1,128 @@
+name: Build & Release Electron App
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    name: macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: cd client && npm install
+
+      - name: Build macOS
+        run: cd client && npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dist
+          path: client/dist/*.dmg
+
+  build-win:
+    name: Windows (.exe installer)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: cd client && npm install
+
+      - name: Build Windows
+        run: cd client && npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: |
+            client/dist/*.exe
+            client/dist/*-setup.exe
+
+  build-linux:
+    name: Linux (.AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: cd client && npm install
+
+      - name: Build Linux
+        run: cd client && npm run build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: client/dist/*.AppImage
+
+  release:
+    name: Create GitHub Release
+    needs: [build-mac, build-win, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all-dist
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Secure System ${{ github.ref_name }}"
+          body: |
+            ## 🔒 Secure System — Remote Desktop
+
+            ### Download the installer for your OS:
+
+            | Platform | File |
+            |----------|------|
+            | 🍎 macOS (Universal) | `Secure System-*.dmg` |
+            | 🪟 Windows (Installer) | `Secure System Setup *.exe` |
+            | 🪟 Windows (Portable) | `Secure System *.exe` |
+            | 🐧 Linux | `Secure System-*.AppImage` |
+
+            ### Quick Start
+            1. Download installer for your OS
+            2. **macOS**: open .dmg → drag to Applications → double-click
+            3. **Windows**: run the Setup .exe installer → launch from Start Menu
+            4. **Linux**: `chmod +x *.AppImage` then run
+            5. Click **Connect** in the sidebar of the person you want to view, enter their ID
+          files: all-dist/**
+          draft: false

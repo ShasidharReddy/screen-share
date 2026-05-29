@@ -1,33 +1,78 @@
 {
   "name": "secure-system",
   "version": "1.0.0",
+  "description": "Secure System — AnyDesk-style remote desktop (Win/Mac)",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder --mac --win",
     "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "dist": "electron-builder --mac --win --linux"
   },
   "dependencies": {
-    "robotjs": "^0.6.0",
     "simple-peer": "^9.11.1",
     "socket.io-client": "^4.6.1"
   },
   "optionalDependencies": {
-    "wrtc": "^0.4.7"
+    "robotjs": "^0.6.0"
   },
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.6.4"
   },
   "build": {
-    "appId": "com.securesystem.app",
+    "appId": "com.securesystem.remotedesktop",
     "productName": "Secure System",
+    "copyright": "Copyright © 2025 Secure System",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!dist/**",
+      "!node_modules/.cache/**"
+    ],
     "mac": {
       "icon": "assets/icon.icns",
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "darkModeSupport": true
     },
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Network"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Secure System"
+    },
+    "dmg": {
+      "title": "Secure System Installer",
+      "background": null,
+      "window": { "width": 500, "height": 320 }
     }
   }
 }
