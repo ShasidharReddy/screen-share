@@ -2,6 +2,10 @@
   "name": "secure-system",
   "version": "1.0.0",
   "description": "Secure System — AnyDesk-style remote desktop (Win/Mac)",
+  "author": {
+    "name": "ShasidharReddy",
+    "email": "noreply@securesystem.app"
+  },
   "main": "main.js",
   "repository": {
     "type": "git",
