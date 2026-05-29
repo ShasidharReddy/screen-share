@@ -24,7 +24,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: cd client && npm install --no-audit --no-fund
+        run: cd client && npm install --ignore-scripts --no-audit --no-fund
 
       - name: Build macOS
         run: cd client && npm run build:mac
@@ -48,7 +48,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: cd client && npm install --no-audit --no-fund
+        run: cd client && npm install --ignore-scripts --no-audit --no-fund
 
       - name: Build Windows
         run: cd client && npm run build:win
@@ -73,7 +73,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: cd client && npm install --no-audit --no-fund
+        run: cd client && npm install --ignore-scripts --no-audit --no-fund
 
       - name: Build Linux
         run: cd client && npm run build:linux
