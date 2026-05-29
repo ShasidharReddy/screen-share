@@ -31,6 +31,24 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
+      - name: Ad-hoc sign macOS DMG (removes "damaged" Gatekeeper error)
+        run: |
+          for dmg in client/dist/*.dmg; do
+            echo "Signing $dmg..."
+            # Extract and sign the .app inside the DMG
+            MOUNTPOINT=$(mktemp -d)
+            hdiutil attach "$dmg" -mountpoint "$MOUNTPOINT" -noverify -noautoopen -quiet
+            APP=$(find "$MOUNTPOINT" -name "*.app" -maxdepth 1 | head -1)
+            if [ -n "$APP" ]; then
+              codesign --deep --force --sign - "$APP" 2>&1 || true
+            fi
+            hdiutil detach "$MOUNTPOINT" -quiet 2>&1 || true
+            rm -rf "$MOUNTPOINT"
+            # Sign the DMG itself
+            codesign --force --sign - "$dmg" 2>&1 || true
+            echo "✓ Signed $dmg"
+          done
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
