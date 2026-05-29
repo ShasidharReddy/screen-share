@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secure System</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="titlebar">
+      <div class="titlebar-left">
+        <svg class="gear-icon" viewBox="0 0 128 128" aria-hidden="true">
+          <defs>
+            <linearGradient id="gearGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+              <stop offset="0%" stop-color="#8BA4F9"></stop>
+              <stop offset="100%" stop-color="#E94560"></stop>
+            </linearGradient>
+          </defs>
+          <circle cx="64" cy="64" r="18" fill="#1A1A2E"></circle>
+          <path
+            fill="url(#gearGradient)"
+            d="M110.6 72.5a47.7 47.7 0 0 0 .5-8.5 47.7 47.7 0 0 0-.5-8.5l12.1-9.4a4.4 4.4 0 0 0 1-5.7l-11.5-19.9a4.5 4.5 0 0 0-5.5-1.9l-14.3 5.7a48 48 0 0 0-14.7-8.5l-2.2-15.2A4.4 4.4 0 0 0 71 0H57a4.4 4.4 0 0 0-4.4 3.7l-2.2 15.2a48 48 0 0 0-14.7 8.5l-14.3-5.7a4.5 4.5 0 0 0-5.5 1.9L4.4 43.5a4.4 4.4 0 0 0 1 5.7l12.1 9.4a47.7 47.7 0 0 0-.5 8.5 47.7 47.7 0 0 0 .5 8.5L5.4 85a4.4 4.4 0 0 0-1 5.7l11.5 19.9a4.5 4.5 0 0 0 5.5 1.9l14.3-5.7a48 48 0 0 0 14.7 8.5l2.2 15.2A4.4 4.4 0 0 0 57 128h14a4.4 4.4 0 0 0 4.4-3.7l2.2-15.2a48 48 0 0 0 14.7-8.5l14.3 5.7a4.5 4.5 0 0 0 5.5-1.9l11.5-19.9a4.4 4.4 0 0 0-1-5.7l-12-9.3ZM64 89a25 25 0 1 1 0-50 25 25 0 0 1 0 50Z"
+          ></path>
+        </svg>
+        <span>Secure System</span>
+      </div>
+      <div class="titlebar-controls">
+        <button data-action="minimize" aria-label="Minimize">—</button>
+        <button data-action="maximize" aria-label="Maximize">▢</button>
+        <button data-action="close" class="close-btn" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="brand-card">
+          <div class="brand-heading">Secure remote control</div>
+          <div class="brand-subheading">Fast peer-to-peer desktop sharing</div>
+        </div>
+
+        <div class="your-id-section panel">
+          <label>Your ID</label>
+          <div class="session-id" id="your-id">000 000 000</div>
+          <button class="copy-btn" id="copy-id-btn">Copy</button>
+        </div>
+
+        <div class="password-section panel">
+          <label for="host-password">Session password</label>
+          <input id="host-password" type="password" placeholder="Set password (optional)" maxlength="64" />
+        </div>
+
+        <div class="connect-section panel">
+          <label for="remote-id">Connect to Remote</label>
+          <input type="text" id="remote-id" placeholder="Enter ID" maxlength="11" />
+          <input type="password" id="remote-pass" placeholder="Password (if set)" maxlength="64" />
+          <button id="connect-btn" class="primary-btn">Connect</button>
+        </div>
+
+        <div class="status-section panel">
+          <div class="status-row">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status">Ready</span>
+          </div>
+          <button id="disconnect-btn" class="secondary-btn">Disconnect</button>
+        </div>
+
+        <div class="file-transfer-section panel">
+          <div class="section-heading-row">
+            <h3>Files</h3>
+            <button id="pick-files-btn" class="secondary-btn small">Send Files</button>
+          </div>
+          <div id="drop-zone" class="drop-zone">
+            <p>Drag & drop files here</p>
+            <span>or use the Send Files button</span>
+          </div>
+          <div id="transfer-list" class="transfer-list"></div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section id="welcome-screen" class="welcome-screen active">
+          <div class="welcome-card">
+            <h1>Secure System</h1>
+            <p>Share your screen, control remote systems, and transfer files securely over WebRTC.</p>
+            <ul>
+              <li>Copy your ID and share it with someone you trust.</li>
+              <li>Enter a remote ID to begin a session.</li>
+              <li>Grant screen recording and accessibility permissions when prompted.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section id="remote-screen" class="remote-screen">
+          <video id="remote-video" autoplay playsinline></video>
+          <div class="toolbar" id="toolbar">
+            <button id="toolbar-disconnect">Disconnect</button>
+            <button id="toolbar-files">Files</button>
+            <button id="toolbar-fullscreen">Fullscreen</button>
+            <button id="toolbar-cad">Ctrl+Alt+Del</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="../node_modules/socket.io-client/dist/socket.io.min.js"></script>
+    <script src="../node_modules/simple-peer/simplepeer.min.js"></script>
+    <script src="./filetransfer.js"></script>
+    <script src="./host.js"></script>
+    <script src="./viewer.js"></script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

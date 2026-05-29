@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F2E55"/>
+      <stop offset="1" stop-color="#0F3460"/>
+    </linearGradient>
+    <linearGradient id="gear" x1="20" y1="20" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C6D2FF"/>
+      <stop offset="1" stop-color="#E94560"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)"/>
+  <path d="M110.6 72.5a47.7 47.7 0 0 0 .5-8.5 47.7 47.7 0 0 0-.5-8.5l12.1-9.4a4.4 4.4 0 0 0 1-5.7l-11.5-19.9a4.5 4.5 0 0 0-5.5-1.9l-14.3 5.7a48 48 0 0 0-14.7-8.5l-2.2-15.2A4.4 4.4 0 0 0 71 0H57a4.4 4.4 0 0 0-4.4 3.7l-2.2 15.2a48 48 0 0 0-14.7 8.5l-14.3-5.7a4.5 4.5 0 0 0-5.5 1.9L4.4 43.5a4.4 4.4 0 0 0 1 5.7l12.1 9.4a47.7 47.7 0 0 0-.5 8.5 47.7 47.7 0 0 0 .5 8.5L5.4 85a4.4 4.4 0 0 0-1 5.7l11.5 19.9a4.5 4.5 0 0 0 5.5 1.9l14.3-5.7a48 48 0 0 0 14.7 8.5l2.2 15.2A4.4 4.4 0 0 0 57 128h14a4.4 4.4 0 0 0 4.4-3.7l2.2-15.2a48 48 0 0 0 14.7-8.5l14.3 5.7a4.5 4.5 0 0 0 5.5-1.9l11.5-19.9a4.4 4.4 0 0 0-1-5.7l-12-9.3ZM64 89a25 25 0 1 1 0-50 25 25 0 0 1 0 50Z" fill="url(#gear)"/>
+  <circle cx="64" cy="64" r="18" fill="#14213E"/>
+</svg>
